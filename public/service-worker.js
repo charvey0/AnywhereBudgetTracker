@@ -1,24 +1,26 @@
 const FILES_TO_CACHE = [
     "/", 
     "/index.html",
-    "index.js", 
+    "/index.js", 
     "/db.js", 
-    "/style.css"
+    "/styles.css",
+    "/manifest.webmanifest",
+    "/icons/icon-192x192.png"
 ];
 
 const PRECACHE = "precache-v1";
 const RUNTIME = "runtime";
 
 // install
-self.addEventListener("install", (event) => {
+self.addEventListener(`install`, (event) => {
   event.waitUntil(
-    caches
-    .open(PRECACHE)
-    .then((cache) => {
-      cache.addAll(FILES_TO_CACHE);
+    caches.open(PRECACHE).then((cache) => {
+      console.log(`Your files were pre-cached successfully!`);
+      return cache.addAll(FILES_TO_CACHE);
     })
-    .then(self.skipWaiting())
   );
+
+  self.skipWaiting();
 });
 
 // activate
@@ -42,24 +44,31 @@ self.addEventListener("activate", (event) => {
 });
 
 // fetch
-self.addEventListener("fetch", (event) => {
-    if(event.request.url.includes('/api/')) {
-      event.respondWith(
-        caches.match(event.request)
-          .then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-      
-            return caches.open(RUNTIME).then((cache) => {
-              return fetch(event.request).then((response) => {
-                return cache.put(event.request, response.clone()).then(() => {
-                  return response;
-                });
-              });
-            });
-        })
-      );
-    }
+self.addEventListener(`fetch`, (evt) => {
+  if (evt.request.url.includes(`/api/`)) {
+    evt.respondWith(
+      caches
+        .open(RUNTIME)
+        .then((cache) =>
+          fetch(evt.request)
+            .then((response) => {
+              // If the response was good, clone it and store it in the cache.
+              if (response.status === 200) {
+                cache.put(evt.request.url, response.clone());
+              }
+
+              return response;
+            })
+            // Network request failed, try to get it from the cache.
+            .catch(() => cache.match(evt.request))
+        )
+        .catch((err) => console.log(err))
+    );
+  } else {
+    evt.respondWith(
+      caches
+        .match(evt.request)
+        .then((response) => response || fetch(evt.request))
+    );
+  }
 });
-      
